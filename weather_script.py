@@ -36,8 +36,8 @@ def check_weather():
                     vis_miles = round(vis_meters / 1609.34, 1)
                     alert_details.append(f"☁️ {time_label}: Low Cloud {low_clouds}% (Vis: {vis_miles} mi)")
 
-    #if alert_details:
-    if True:
+    if alert_details:
+    #if True:
         message = "🌫️ *Pompano Fog/Low Cloud Alert*\nForecast for tomorrow morning:\n\n" + "\n".join(alert_details)
         send_telegram(message)
     else:
