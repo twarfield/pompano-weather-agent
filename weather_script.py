@@ -2,42 +2,47 @@ import requests
 import os
 from datetime import datetime, timedelta
 
-# Secrets from GitHub
+# Telegram Secrets from GitHub Actions
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-API_KEY = os.getenv("WEATHER_API_KEY")
-
-# Pompano Beach Coordinates
-LAT = 26.2379
-LON = -80.1248
 
 def check_weather():
-    # 1. Get Forecast
-    url = f"https://api.openweathermap.org/data/3.0/onecall?lat={LAT}&lon={LON}&appid={API_KEY}&units=imperial"
-    data = requests.get(url).json()
+    # Pompano Beach Coordinates
+    lat, lon = 26.2379, -80.1248
+    
+    # We pull Visibility (meters) and Cloud Cover Low (%)
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=visibility,cloud_cover_low&forecast_days=2"
+    
+    response = requests.get(url).json()
+    hourly = response.get('hourly', {})
+    
+    # Calculate "Tomorrow" date string
+    tomorrow_str = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+    alert_details = []
 
-    tomorrow = datetime.now() + timedelta(days=1)
-    found_fog = False
-    report = []
-
-    # 2. Check 6AM - 10AM tomorrow
-    for hour in data.get('hourly', []):
-        dt = datetime.fromtimestamp(hour['dt'])
-        if dt.date() == tomorrow.date() and 6 <= dt.hour <= 10:
-            condition = hour['weather'][0]['description']
-            vis_meters = hour.get('visibility', 10000)
+    # Loop through the forecast hours
+    for i, time_val in enumerate(hourly.get('time', [])):
+        if tomorrow_str in time_val:
+            dt = datetime.fromisoformat(time_val)
             
-            # Trigger if 'fog' is in description or visibility < 2000 meters
-            if "fog" in condition.lower() or "mist" in condition.lower() or vis_meters < 2000:
-                found_fog = True
-                report.append(f"⏰ {dt.strftime('%I %p')}: {condition.capitalize()}")
+            # Focus on 6:00 AM to 10:00 AM
+            if 6 <= dt.hour <= 10:
+                vis_meters = hourly['visibility'][i]
+                low_clouds = hourly['cloud_cover_low'][i]
+                
+                # CRITERIA: Visibility < 3000m (approx 1.8 miles) OR Low Clouds > 85%
+                if vis_meters < 3000 or low_clouds > 85:
+                    time_label = dt.strftime('%I:%M %p')
+                    vis_miles = round(vis_meters / 1609.34, 1)
+                    alert_details.append(f"☁️ {time_label}: Low Cloud {low_clouds}% (Vis: {vis_miles} mi)")
 
-    # 3. Send Telegram Alert
-    if found_fog:
-        alert_text = "🌫️ *Pompano Fog Alert for Tomorrow*\n\n" + "\n".join(report)
-        send_msg(alert_text)
+    if alert_details:
+        message = "🌫️ *Pompano Fog/Low Cloud Alert*\nForecast for tomorrow morning:\n\n" + "\n".join(alert_details)
+        send_telegram(message)
+    else:
+        print("No fog/low clouds expected. No message sent.")
 
-def send_msg(text):
+def send_telegram(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "Markdown"}
     requests.post(url, data=payload)
