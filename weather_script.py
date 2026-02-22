@@ -31,7 +31,7 @@ def check_weather():
                 low_clouds = hourly['cloud_cover_low'][i]
                 
                 # CRITERIA: Visibility < 3000m (approx 1.8 miles) OR Low Clouds > 85%
-                if vis_meters < 3000 or low_clouds > 85:
+                if vis_meters < 3000 or low_clouds > 85 or True:
                     time_label = dt.strftime('%I:%M %p')
                     vis_miles = round(vis_meters / 1609.34, 1)
                     alert_details.append(f"☁️ {time_label}: Low Cloud {low_clouds}% (Vis: {vis_miles} mi)")
